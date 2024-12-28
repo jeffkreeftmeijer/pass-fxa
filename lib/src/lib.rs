@@ -245,21 +245,21 @@ struct SendUnblockCodeRequest<'a> {
     email: &'a str,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 struct PublicKey<'a> {
     algorithm: &'a str,
     n: &'a str,
     e: &'a str,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct CertificateSignRequest<'a> {
     public_key: PublicKey<'a>,
     duration: u64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct CertificateSignResponse {
     cert: String,
 }
@@ -545,20 +545,29 @@ impl FxaClient {
         credentials: &hawk::Credentials,
     ) -> (CertificateSignResponse, u64) {
         let url = Url::parse(&format!("{}/certificate/sign", self.base_uri)).unwrap();
-        let mut request = self
-            .client
-            .post(url.clone())
-            .json(&CertificateSignRequest {
+        let certificate_sign_request = CertificateSignRequest {
                 public_key: PublicKey {
                     algorithm: "RS",
                     n,
                     e,
                 },
-                // Value in milliseconds
                 duration: DURATION * 1000,
-            })
+            };
+
+        dbg!(&certificate_sign_request);
+
+        let mut request = self
+            .client
+            .post(url.clone())
+            .json(
+                &certificate_sign_request,
+                // Value in milliseconds
+            )
             .build()
             .unwrap();
+
+        dbg!(&request);
+
         hawk_authenticate(&mut request, credentials);
         let response = self.client.execute(request).await.unwrap();
         let server_time = response
@@ -570,7 +579,13 @@ impl FxaClient {
             .parse()
             .unwrap();
 
-        (response.json().await.unwrap(), server_time)
+        // let json = response.json().await.unwrap();
+        let text = response.text().await.unwrap();
+
+        // dbg!(&response);
+        dbg!(&text);
+
+        (CertificateSignResponse { cert: "".to_string()}, server_time)
     }
 
     async fn sync_server_tokens(
